@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>7 Mandell Holiday Scheduler</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .sticky-col { position: sticky; left: 0; z-index: 10; }
+    .sticky-header { position: sticky; top: 0; z-index: 20; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-10">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">7 Mandell Holiday Scheduler</h1>
+        <p class="text-xs text-slate-400">Active Tier Window: <span id="active-tier-badge" class="font-bold text-emerald-400 uppercase">Loading...</span></p>
+      </div>
+      <div id="user-profile-badge" class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+        Logged in as: <span id="user-display-name" class="font-bold text-white">Guest (Read Only)</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-4 space-y-4">
+
+    <!-- Status Banner -->
+    <div id="status-banner" class="p-3.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-medium flex items-center justify-between shadow-sm">
+      <span id="status-text">Loading scheduling data...</span>
+    </div>
+
+    <!-- MOBILE VIEW (Card-Based UI) -->
+    <div class="block md:hidden space-y-3" id="mobile-card-container">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Select Date & Shift</label>
+        <select id="mobile-shift-picker" class="w-full p-2.5 border border-slate-300 rounded-lg font-medium text-slate-700 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <!-- Populated dynamically -->
+        </select>
+      </div>
+
+      <div id="mobile-shift-card" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <!-- Dynamic mobile content -->
+      </div>
+    </div>
+
+    <!-- DESKTOP VIEW (Matrix Grid UI) -->
+    <div class="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto max-h-[72vh]">
+        <table class="w-full text-left border-collapse" id="matrix-table">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider sticky-header" id="table-header-row">
+              <th class="p-3 sticky-col bg-slate-100 border-b border-r border-slate-200 min-w-[180px]">Staff Member</th>
+              <!-- Shift columns populated dynamically -->
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-200 text-sm">
+            <!-- Staff rows populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ⚠️ REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT WEB APP URL FROM STEP 2
+    const API_URL = "https://script.google.com/macros/s/AKfycbx_go1oV_b1ICZzbb3-FTtuoef8GYUt75E8Dd6zYfCw5TPOQdDxxRjID6dxskYRmL1D/exec";
+
+    let state = {
+      activeTier: "",
+      staff: [],
+      shifts: [],
+      currentUser: null
+    };
+
+    // Extract personalized link ID from URL query string (?user=101)
+    const urlParams = new URLSearchParams(window.location.search);
+    const loggedInUserId = urlParams.get('user');
+
+    async function fetchSystemData() {
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+        
+        state.activeTier = data.activeTier;
+        state.staff = data.staff;
+        state.shifts = data.shifts;
+
+        // Resolve authenticated user from URL parameter
+        if (loggedInUserId) {
+          state.currentUser = state.staff.find(s => String(s.id) === String(loggedInUserId)) || null;
+        }
+
+        updateUI();
+      } catch (err) {
+        document.getElementById("status-text").textContent = "Error loading schedule data. Please refresh.";
+        console.error(err);
+      }
+    }
+
+    function updateUI() {
+      document.getElementById("active-tier-badge").textContent = state.activeTier;
+      
+      const userBadge = document.getElementById("user-display-name");
+      const statusText = document.getElementById("status-text");
+
+      if (state.currentUser) {
+        userBadge.textContent = `${state.currentUser.name} (${state.currentUser.tier})`;
+        
+        const isMyTierActive = state.currentUser.tier.toLowerCase() === state.activeTier.toLowerCase();
+        const userQuota = state.currentUser.quota !== undefined ? state.currentUser.quota : 2;
+        const isRowComplete = state.currentUser.picks.length >= userQuota;
+
+        if (userQuota === 0) {
+          statusText.textContent = `✅ You are exempt from holiday selections this cycle. Your row is marked complete.`;
+        } else if (!isMyTierActive) {
+          statusText.textContent = `🔒 Read Only Mode: Selection window is open for ${state.activeTier} staff. Your window (${state.currentUser.tier}) will open soon.`;
+        } else if (isRowComplete) {
+          statusText.textContent = `✅ Your ${userQuota} holiday selection(s) are complete! Your row is locked and highlighted green.`;
+        } else {
+          statusText.textContent = `👋 Welcome, ${state.currentUser.name}! Tap up to ${userQuota} open shift(s) below to complete your selection.`;
+        }
+      } else {
+        userBadge.textContent = "Guest Viewer";
+        statusText.textContent = "🔒 Read Only Mode: Viewing as a guest. Use your personal link to make selections.";
+      }
+
+      renderDesktopMatrix();
+      renderMobileCard();
+    }
+
+    function renderDesktopMatrix() {
+      const headerRow = document.getElementById("table-header-row");
+      const tbody = document.getElementById("table-body");
+      
+      headerRow.innerHTML = `<th class="p-3 sticky-col bg-slate-100 border-b border-r border-slate-200 min-w-[180px]">Staff Member</th>`;
+
+      // Render Headers with Column Cap Logic
+      state.shifts.forEach(shift => {
+        const currentCount = state.staff.filter(person => person.picks.includes(shift.id)).length;
+        const isFull = currentCount >= shift.cap;
+        
+        const th = document.createElement("th");
+        th.className = `p-3 text-center border-b border-slate-200 min-w-[110px] ${isFull ? 'bg-emerald-600 text-white' : ''}`;
+        th.innerHTML = `
+          <div class="font-bold">${shift.date}</div>
+          <div class="text-[10px] opacity-80 uppercase">${shift.type}</div>
+          <div class="text-[10px] font-bold mt-1 ${isFull ? 'text-white' : 'text-slate-500'}">${currentCount}/${shift.cap} ${isFull ? 'FULL' : 'OPEN'}</div>
+        `;
+        headerRow.appendChild(th);
+      });
+
+      // Render Staff Rows
+      tbody.innerHTML = "";
+      state.staff.forEach(person => {
+        const userQuota = person.quota !== undefined ? person.quota : 2;
+        const isRowComplete = person.picks.length >= userQuota;
+        const isMe = state.currentUser && String(person.id) === String(state.currentUser.id);
+        const isMyTierActive = state.currentUser && state.currentUser.tier.toLowerCase() === state.activeTier.toLowerCase();
+        const canEditRow = isMe && isMyTierActive && userQuota > 0;
+
+        const tr = document.createElement("tr");
+        tr.className = isRowComplete ? "bg-emerald-50/80" : "hover:bg-slate-50";
+
+        let html = `
+          <td class="p-3 font-medium border-r border-slate-200 sticky-col ${isRowComplete ? 'bg-emerald-100/80' : 'bg-white'}">
+            <div class="flex flex-col">
+              <span class="${isMe ? 'text-emerald-900 font-bold underline' : 'text-slate-700'}">${person.name} ${isMe ? '(You)' : ''}</span>
+              <span class="text-[10px] text-slate-500">${person.tier} Tier ${isRowComplete ? '• Complete' : `(${person.picks.length}/${userQuota})`}</span>
+            </div>
+          </td>
+        `;
+
+        state.shifts.forEach(shift => {
+          const currentCount = state.staff.filter(p => p.picks.includes(shift.id)).length;
+          const isSelected = person.picks.includes(shift.id);
+          const isColumnFull = currentCount >= shift.cap;
+          const isDisabled = !canEditRow || (!isSelected && (isRowComplete || isColumnFull));
+
+          html += `
+            <td class="p-2 text-center border-r border-slate-100">
+              <button 
+                onclick="toggleShiftSelection('${shift.id}')"
+                ${isDisabled ? 'disabled' : ''}
+                class="w-full py-2 px-1 rounded text-xs font-bold transition-all ${
+                  isSelected 
+                    ? 'bg-emerald-600 text-white shadow-sm' 
+                    : isDisabled 
+                      ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                      : 'bg-slate-100 hover:bg-emerald-100 text-slate-700'
+                }"
+              >
+                ${isSelected ? 'Selected' : 'Select'}
+              </button>
+            </td>
+          `;
+        });
+
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderMobileCard() {
+      const picker = document.getElementById("mobile-shift-picker");
+      const cardContainer = document.getElementById("mobile-shift-card");
+
+      if (picker.children.length === 0) {
+        state.shifts.forEach(shift => {
+          const opt = document.createElement("option");
+          opt.value = shift.id;
+          opt.textContent = `${shift.date} (${shift.type} Shift)`;
+          picker.appendChild(opt);
+        });
+        picker.addEventListener("change", renderMobileCard);
+      }
+
+      const activeShiftId = picker.value || (state.shifts[0] && state.shifts[0].id);
+      if (!activeShiftId) return;
+
+      const activeShift = state.shifts.find(s => s.id === activeShiftId);
+      const currentCount = state.staff.filter(p => p.picks.includes(activeShiftId)).length;
+      const isColumnFull = currentCount >= activeShift.cap;
+
+      const isMe = !!state.currentUser;
+      const userQuota = isMe && state.currentUser.quota !== undefined ? state.currentUser.quota : 2;
+      const isMyTierActive = isMe && state.currentUser.tier.toLowerCase() === state.activeTier.toLowerCase();
+      const isSelected = isMe && state.currentUser.picks.includes(activeShiftId);
+      const isRowComplete = isMe && state.currentUser.picks.length >= userQuota;
+      const canEdit = isMyTierActive && userQuota > 0 && (!isRowComplete || isSelected) && (!isColumnFull || isSelected);
+
+      cardContainer.innerHTML = `
+        <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="font-bold text-lg text-slate-800">${activeShift.date}</h3>
+            <p class="text-xs text-slate-500 uppercase tracking-wider">${activeShift.type} Shift</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isColumnFull ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}">
+            ${currentCount} / ${activeShift.cap} Filled
+          </span>
+        </div>
+
+        <div>
+          <button 
+            onclick="toggleShiftSelection('${activeShiftId}')"
+            ${!canEdit ? 'disabled' : ''}
+            class="w-full py-3 rounded-lg font-bold text-sm transition-all ${
+              isSelected 
+                ? 'bg-emerald-600 text-white shadow-md' 
+                : !canEdit 
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                  : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm'
+            }"
+          >
+            ${isSelected ? 'Selected (Tap to Remove)' : 'Select This Shift'}
+          </button>
+        </div>
+      `;
+    }
+
+    async function toggleShiftSelection(shiftId) {
+      if (!state.currentUser) return;
+
+      const person = state.staff.find(s => String(s.id) === String(state.currentUser.id));
+      const userQuota = person.quota !== undefined ? person.quota : 2;
+      const index = person.picks.indexOf(shiftId);
+      const action = index > -1 ? "REMOVE" : "ADD";
+
+      if (action === "ADD" && person.picks.length >= userQuota) return;
+
+      if (action === "REMOVE") {
+        person.picks.splice(index, 1);
+      } else {
+        person.picks.push(shiftId);
+      }
+
+      updateUI();
+
+      try {
+        await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            staffId: state.currentUser.id,
+            shiftId: shiftId,
+            action: action
+          })
+        });
+      } catch (err) {
+        console.error("Save failed:", err);
+        fetchSystemData();
+      }
+    }
+
+    fetchSystemData();
+  </script>
+</body>
+</html>
