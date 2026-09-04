@@ -1,3 +1,13 @@
+Here is the updated index.html code that adds red text styling for Major Holidays across both the Full Table Grid View and the Mobile Card View, along with the view toggle switch.
+
+Updated Frontend Code (index.html)
+Open your 7-mandell-holiday-scheduler repository on GitHub.
+
+Click on index.html and select the pencil icon (Edit this file).
+
+Replace the entire code with this updated version:
+
+HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,7 +22,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen pb-10">
 
-  <!-- Header -->
   <header class="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-30">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
       <div>
@@ -27,38 +36,49 @@
 
   <main class="max-w-6xl mx-auto p-4 space-y-4">
 
-    <!-- Status Banner -->
     <div id="status-banner" class="p-3.5 rounded-xl bg-slate-200 text-slate-800 text-sm font-medium flex items-center justify-between shadow-sm">
       <span id="status-text">Loading scheduling data...</span>
     </div>
 
-    <!-- MOBILE VIEW (Card-Based UI) -->
-    <div class="block md:hidden space-y-3" id="mobile-card-container">
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Select Date & Shift</label>
-        <select id="mobile-shift-picker" class="w-full p-2.5 border border-slate-300 rounded-lg font-medium text-slate-700 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          <!-- Populated dynamically -->
-        </select>
+    <div class="flex justify-between items-center pt-1">
+      <div class="flex items-center gap-2 text-xs">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-600"></span>
+        <span class="font-bold text-red-600">Major Holiday</span>
+        <span class="text-slate-400 ml-1">|</span>
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-slate-700 ml-1"></span>
+        <span class="font-medium text-slate-600">Minor Holiday</span>
       </div>
-
-      <div id="mobile-shift-card" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-        <!-- Dynamic mobile content -->
+      <div class="inline-flex rounded-lg bg-slate-200 p-1 border border-slate-300">
+        <button id="toggle-card-btn" onclick="setViewMode('card')" class="px-3 py-1 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-sm">
+          📱 Card View
+        </button>
+        <button id="toggle-matrix-btn" onclick="setViewMode('matrix')" class="px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-slate-900">
+          📊 Full Table
+        </button>
       </div>
     </div>
 
-    <!-- DESKTOP VIEW (Matrix Grid UI) -->
-    <div class="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="space-y-3" id="mobile-card-container">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Select Date & Shift</label>
+        <select id="mobile-shift-picker" class="w-full p-2.5 border border-slate-300 rounded-lg font-medium text-slate-700 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </select>
+      </div>
+
+      <div id="mobile-shift-card" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        </div>
+    </div>
+
+    <div id="matrix-container" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       <div class="overflow-x-auto max-h-[72vh]">
         <table class="w-full text-left border-collapse" id="matrix-table">
           <thead>
             <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider sticky-header" id="table-header-row">
               <th class="p-3 sticky-col bg-slate-100 border-b border-r border-slate-200 min-w-[180px]">Staff Member</th>
-              <!-- Shift columns populated dynamically -->
-            </tr>
+              </tr>
           </thead>
           <tbody id="table-body" class="divide-y divide-slate-200 text-sm">
-            <!-- Staff rows populated dynamically -->
-          </tbody>
+            </tbody>
         </table>
       </div>
     </div>
@@ -69,16 +89,51 @@
     // ⚠️ REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT WEB APP URL FROM STEP 2
     const API_URL = "https://script.google.com/macros/s/AKfycbx_go1oV_b1ICZzbb3-FTtuoef8GYUt75E8Dd6zYfCw5TPOQdDxxRjID6dxskYRmL1D/exec";
 
+    // Specific shifts designated as Major Holidays (Red Text)
+    const MAJOR_HOLIDAY_IDS = ["S02", "S05", "S06", "S09", "S10"];
+
     let state = {
       activeTier: "",
       staff: [],
       shifts: [],
-      currentUser: null
+      currentUser: null,
+      viewMode: window.innerWidth < 768 ? 'card' : 'matrix'
     };
 
-    // Extract personalized link ID from URL query string (?user=101)
     const urlParams = new URLSearchParams(window.location.search);
     const loggedInUserId = urlParams.get('user');
+
+    function isMajorHoliday(shift) {
+      if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
+      const title = `${shift.date} ${shift.type}`.toLowerCase();
+      return (
+        (title.includes("thanksgiving") && title.includes("day")) ||
+        (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
+        (title.includes("christmas") && !title.includes("eve") && (title.includes("day") || title.includes("a"))) ||
+        (title.includes("new years eve") && (title.includes("evening") || title.includes("p"))) ||
+        (title.includes("new years day") && (title.includes("day") || title.includes("a")))
+      );
+    }
+
+    function setViewMode(mode) {
+      state.viewMode = mode;
+      const cardContainer = document.getElementById("mobile-card-container");
+      const matrixContainer = document.getElementById("matrix-container");
+      const cardBtn = document.getElementById("toggle-card-btn");
+      const matrixBtn = document.getElementById("toggle-matrix-btn");
+
+      if (mode === 'card') {
+        cardContainer.classList.remove("hidden");
+        matrixContainer.classList.add("hidden");
+        cardBtn.className = "px-3 py-1 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-sm";
+        matrixBtn.className = "px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-slate-900";
+      } else {
+        cardContainer.classList.add("hidden");
+        matrixContainer.classList.remove("hidden");
+        matrixBtn.className = "px-3 py-1 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-sm";
+        cardBtn.className = "px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-slate-900";
+      }
+    }
 
     async function fetchSystemData() {
       try {
@@ -89,7 +144,6 @@
         state.staff = data.staff;
         state.shifts = data.shifts;
 
-        // Resolve authenticated user from URL parameter
         if (loggedInUserId) {
           state.currentUser = state.staff.find(s => String(s.id) === String(loggedInUserId)) || null;
         }
@@ -128,6 +182,7 @@
         statusText.textContent = "🔒 Read Only Mode: Viewing as a guest. Use your personal link to make selections.";
       }
 
+      setViewMode(state.viewMode);
       renderDesktopMatrix();
       renderMobileCard();
     }
@@ -138,22 +193,24 @@
       
       headerRow.innerHTML = `<th class="p-3 sticky-col bg-slate-100 border-b border-r border-slate-200 min-w-[180px]">Staff Member</th>`;
 
-      // Render Headers with Column Cap Logic
       state.shifts.forEach(shift => {
         const currentCount = state.staff.filter(person => person.picks.includes(shift.id)).length;
         const isFull = currentCount >= shift.cap;
+        const isMajor = isMajorHoliday(shift);
         
+        const textColorClass = isFull ? 'text-white' : (isMajor ? 'text-red-600 font-extrabold' : 'text-slate-800');
+        const badgeColorClass = isFull ? 'text-white' : (isMajor ? 'text-red-700 font-bold' : 'text-slate-500');
+
         const th = document.createElement("th");
         th.className = `p-3 text-center border-b border-slate-200 min-w-[110px] ${isFull ? 'bg-emerald-600 text-white' : ''}`;
         th.innerHTML = `
-          <div class="font-bold">${shift.date}</div>
-          <div class="text-[10px] opacity-80 uppercase">${shift.type}</div>
-          <div class="text-[10px] font-bold mt-1 ${isFull ? 'text-white' : 'text-slate-500'}">${currentCount}/${shift.cap} ${isFull ? 'FULL' : 'OPEN'}</div>
+          <div class="${textColorClass}">${shift.date}</div>
+          <div class="text-[10px] uppercase opacity-90 ${textColorClass}">${shift.type}</div>
+          <div class="text-[10px] mt-1 ${badgeColorClass}">${currentCount}/${shift.cap} ${isFull ? 'FULL' : 'OPEN'}</div>
         `;
         headerRow.appendChild(th);
       });
 
-      // Render Staff Rows
       tbody.innerHTML = "";
       state.staff.forEach(person => {
         const userQuota = person.quota !== undefined ? person.quota : 2;
@@ -210,9 +267,10 @@
 
       if (picker.children.length === 0) {
         state.shifts.forEach(shift => {
+          const isMajor = isMajorHoliday(shift);
           const opt = document.createElement("option");
           opt.value = shift.id;
-          opt.textContent = `${shift.date} (${shift.type} Shift)`;
+          opt.textContent = `${isMajor ? '★ ' : ''}${shift.date} (${shift.type} Shift)${isMajor ? ' - Major' : ''}`;
           picker.appendChild(opt);
         });
         picker.addEventListener("change", renderMobileCard);
@@ -222,6 +280,7 @@
       if (!activeShiftId) return;
 
       const activeShift = state.shifts.find(s => s.id === activeShiftId);
+      const isMajor = isMajorHoliday(activeShift);
       const currentCount = state.staff.filter(p => p.picks.includes(activeShiftId)).length;
       const isColumnFull = currentCount >= activeShift.cap;
 
@@ -235,8 +294,11 @@
       cardContainer.innerHTML = `
         <div class="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
-            <h3 class="font-bold text-lg text-slate-800">${activeShift.date}</h3>
-            <p class="text-xs text-slate-500 uppercase tracking-wider">${activeShift.type} Shift</p>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-lg ${isMajor ? 'text-red-600' : 'text-slate-800'}">${activeShift.date}</h3>
+              ${isMajor ? '<span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-700 uppercase">Major Holiday</span>' : ''}
+            </div>
+            <p class="text-xs font-semibold ${isMajor ? 'text-red-500' : 'text-slate-500'} uppercase tracking-wider">${activeShift.type} Shift</p>
           </div>
           <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isColumnFull ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}">
             ${currentCount} / ${activeShift.cap} Filled
