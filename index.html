@@ -93,17 +93,17 @@
     const urlParams = new URLSearchParams(window.location.search);
     const loggedInUserId = urlParams.get('user');
 
-    function isMajorHoliday(shift) {
-      if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
-      const title = `${shift.date} ${shift.type}`.toLowerCase();
-      return (
-        (title.includes("thanksgiving") && title.includes("day")) ||
-        (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
-        (title.includes("christmas") && !title.includes("eve") && (title.includes("day") || title.includes("a"))) ||
-        (title.includes("new years eve") && (title.includes("evening") || title.includes("p"))) ||
-        (title.includes("new years day") && (title.includes("day") || title.includes("a")))
-      );
-    }
+   function isMajorHoliday(shift) {
+  if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
+  const title = `${shift.date} ${shift.type}`.toLowerCase();
+  return (
+    (title.includes("thanksgiving") && (title.includes("day") || title.includes("a"))) ||
+    (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
+    (title.includes("christmas day") && (title.includes("day") || title.includes("a"))) ||
+    (title.includes("new years eve") && (title.includes("evening") || title.includes("p"))) ||
+    (title.includes("new years day") && (title.includes("day") || title.includes("a")))
+  );
+}
 
     function setViewMode(mode) {
       state.viewMode = mode;
