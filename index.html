@@ -80,7 +80,7 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbx_go1oV_b1ICZzbb3-FTtuoef8GYUt75E8Dd6zYfCw5TPOQdDxxRjID6dxskYRmL1D/exec";
 
     // Specific shifts designated as Major Holidays (Red Text)
-    const MAJOR_HOLIDAY_IDS = ["S02", "S05", "S06", "S09", "S10"];
+ const MAJOR_HOLIDAY_IDS = ["S02", "S05", "S06", "S09", "S10"];
 
     let state = {
       activeTier: "",
@@ -93,9 +93,17 @@
     const urlParams = new URLSearchParams(window.location.search);
     const loggedInUserId = urlParams.get('user');
 
-   function isMajorHoliday(shift) {
+function isMajorHoliday(shift) {
+  // Explicitly check our 5 major holiday IDs
   if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
+  
   const title = `${shift.date} ${shift.type}`.toLowerCase();
+  
+  // Exclude Night / P shifts for Thanksgiving
+  if (title.includes("thanksgiving") && (title.includes("night") || title.includes("p"))) {
+    return false;
+  }
+
   return (
     (title.includes("thanksgiving") && (title.includes("day") || title.includes("a"))) ||
     (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
