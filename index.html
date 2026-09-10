@@ -169,7 +169,7 @@ function isMajorHoliday(shift) {
         if (userQuota === 0) {
           statusText.textContent = `✅ You are exempt from holiday selections this cycle. Your row is marked complete.`;
         } else if (!isMyTierActive) {
-          statusText.textContent = `🔒 Read Only Mode: Selection window is open for ${state.activeTier} staff. Your window (${state.currentUser.tier}) will open soon.`;
+          statusText.textContent = `🔒 Read Only Mode: Selection window is open for ${state.activeTier} staff. Your window (${state.currentUser.tier}) is now closed.`;
         } else if (isRowComplete) {
           statusText.textContent = `✅ Your ${userQuota} holiday selection(s) are complete! Your row is locked and highlighted green.`;
         } else {
