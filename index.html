@@ -50,13 +50,13 @@
 
     <div class="space-y-3" id="mobile-card-container">
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Use Drop-Down to Select Hoiliday & Shift</label>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Use Drop-Down to Select Holiday & Shift</label>
         <select id="mobile-shift-picker" class="w-full p-2.5 border border-slate-300 rounded-lg font-medium text-slate-700 bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          </select>
+        </select>
       </div>
 
       <div id="mobile-shift-card" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
-        </div>
+      </div>
     </div>
 
     <div id="matrix-container" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -65,10 +65,10 @@
           <thead>
             <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider sticky-header" id="table-header-row">
               <th class="p-3 sticky-col bg-slate-100 border-b border-r border-slate-200 min-w-[180px]">Staff Member</th>
-              </tr>
+            </tr>
           </thead>
           <tbody id="table-body" class="divide-y divide-slate-200 text-sm">
-            </tbody>
+          </tbody>
         </table>
       </div>
     </div>
@@ -76,11 +76,9 @@
   </main>
 
   <script>
-    // ⚠️ REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT WEB APP URL FROM STEP 2
     const API_URL = "https://script.google.com/macros/s/AKfycbx_go1oV_b1ICZzbb3-FTtuoef8GYUt75E8Dd6zYfCw5TPOQdDxxRjID6dxskYRmL1D/exec";
 
-    // Specific shifts designated as Major Holidays (Red Text)
- const MAJOR_HOLIDAY_IDS = ["S02", "S05", "S06", "S09", "S10"];
+    const MAJOR_HOLIDAY_IDS = ["S02", "S05", "S06", "S09", "S10"];
 
     let state = {
       activeTier: "",
@@ -93,25 +91,20 @@
     const urlParams = new URLSearchParams(window.location.search);
     const loggedInUserId = urlParams.get('user');
 
-function isMajorHoliday(shift) {
-  // Explicitly check our 5 major holiday IDs
-  if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
-  
-  const title = `${shift.date} ${shift.type}`.toLowerCase();
-  
-  // Exclude Night / P shifts for Thanksgiving
-  if (title.includes("thanksgiving") && (title.includes("night") || title.includes("p"))) {
-    return false;
-  }
-
-  return (
-    (title.includes("thanksgiving") && (title.includes("day") || title.includes("a"))) ||
-    (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
-    (title.includes("christmas day") && (title.includes("day") || title.includes("a"))) ||
-    (title.includes("new years eve") && (title.includes("evening") || title.includes("p"))) ||
-    (title.includes("new years day") && (title.includes("day") || title.includes("a")))
-  );
-}
+    function isMajorHoliday(shift) {
+      if (MAJOR_HOLIDAY_IDS.includes(shift.id)) return true;
+      const title = `${shift.date} ${shift.type}`.toLowerCase();
+      if (title.includes("thanksgiving") && (title.includes("night") || title.includes("p"))) {
+        return false;
+      }
+      return (
+        (title.includes("thanksgiving") && (title.includes("day") || title.includes("a"))) ||
+        (title.includes("christmas eve") && (title.includes("evening") || title.includes("p"))) ||
+        (title.includes("christmas day") && (title.includes("day") || title.includes("a"))) ||
+        (title.includes("new years eve") && (title.includes("evening") || title.includes("p"))) ||
+        (title.includes("new years day") && (title.includes("day") || title.includes("a")))
+      );
+    }
 
     function setViewMode(mode) {
       state.viewMode = mode;
@@ -289,6 +282,10 @@ function isMajorHoliday(shift) {
       const isRowComplete = isMe && state.currentUser.picks.length >= userQuota;
       const canEdit = isMyTierActive && userQuota > 0 && (!isRowComplete || isSelected) && (!isColumnFull || isSelected);
 
+      // Build staff roster list for this mobile card view
+      const assignedStaff = state.staff.filter(p => p.picks.includes(activeShiftId)).map(p => p.name);
+      const rosterText = assignedStaff.length > 0 ? assignedStaff.join(", ") : "None yet";
+
       cardContainer.innerHTML = `
         <div class="flex justify-between items-start border-b border-slate-100 pb-3">
           <div>
@@ -301,6 +298,11 @@ function isMajorHoliday(shift) {
           <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isColumnFull ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}">
             ${currentCount} / ${activeShift.cap} Filled
           </span>
+        </div>
+
+        <div class="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+          <strong class="text-slate-700 block mb-0.5">Currently Picked By:</strong>
+          <span class="italic">${rosterText}</span>
         </div>
 
         <div>
@@ -331,6 +333,7 @@ function isMajorHoliday(shift) {
 
       if (action === "ADD" && person.picks.length >= userQuota) return;
 
+      // Optimistically update local UI
       if (action === "REMOVE") {
         person.picks.splice(index, 1);
       } else {
@@ -340,18 +343,28 @@ function isMajorHoliday(shift) {
       updateUI();
 
       try {
-        await fetch(API_URL, {
+        const response = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
           body: JSON.stringify({
             staffId: state.currentUser.id,
+            userId: state.currentUser.id,
             shiftId: shiftId,
-            action: action
+            action: action,
+            picks: person.picks
           })
         });
+
+        const result = await response.json();
+        
+        // If backend returns an error (e.g. shift reached capacity right as clicked), revert local UI and alert
+        if (result.status === "error") {
+          alert(result.message || "Unable to complete selection.");
+          await fetchSystemData(); // Re-sync with actual sheet state
+        }
       } catch (err) {
         console.error("Save failed:", err);
-        fetchSystemData();
+        await fetchSystemData(); // Re-sync if network fails
       }
     }
 
